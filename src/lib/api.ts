@@ -78,8 +78,7 @@ export interface SessionMessagesResponse {
   messages: SessionMessage[];
 }
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "/api";
 
 const DEFAULT_ROLES: PublicRole[] = [
   {
