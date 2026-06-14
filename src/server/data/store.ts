@@ -36,7 +36,11 @@ const SESSION_RETENTION_DAYS = Number(process.env.SESSION_RETENTION_DAYS || 90);
 const MAX_ACADEMIC_RECORDS_PER_TEACHER = Number(process.env.MAX_ACADEMIC_RECORDS_PER_TEACHER || 20_000);
 
 function rootDir() {
-  return process.env.DATA_DIR || path.join(process.cwd(), "data");
+  if (process.env.DATA_DIR) return process.env.DATA_DIR;
+  // Vercel Functions expose only /tmp as writable local storage. This keeps the
+  // demo deployable, but /tmp is ephemeral and must not be treated as durable.
+  if (process.env.VERCEL) return path.join("/tmp", "an-tam-data");
+  return path.join(process.cwd(), "data");
 }
 function usersFile() { return path.join(rootDir(), "users.json"); }
 function sessionsDir() { return path.join(rootDir(), "sessions"); }

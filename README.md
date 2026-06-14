@@ -160,3 +160,15 @@ Bộ kiểm thử hiện có **35 test case** bao phủ:
 - `/chat` is the distraction-free conversation workspace.
 - Account, teacher import, student data, role selection, and persona options are moved into a slide-over settings drawer.
 - Motion respects the operating system `prefers-reduced-motion` accessibility setting.
+
+## Vercel deployment
+
+This repository pins Node.js 22 and npm 10.9.2. Vercel installs dependencies with:
+
+```bash
+npm ci --no-audit --no-fund
+```
+
+Set `GEMINI_API_KEY` and `AUTH_SECRET` in Vercel Project Settings. Do not set `DATA_DIR=./data` on Vercel because the deployed application directory is read-only. When `VERCEL=1` and `DATA_DIR` is unset, the app automatically uses `/tmp/an-tam-data`.
+
+**Important:** Vercel `/tmp` storage is ephemeral. Registration, imported grades, and chat history may disappear after a cold start or run on a different function instance. The local-file mode is durable only on a single server/VPS with a persistent disk.
