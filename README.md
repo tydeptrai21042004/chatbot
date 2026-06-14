@@ -205,3 +205,15 @@ Set `GEMINI_API_KEY` and `AUTH_SECRET` in Vercel Project Settings. Do not set `D
 - Import lại cùng học sinh không tạo tài khoản trùng; điểm cùng môn/học kỳ được cập nhật.
 
 > Các mật khẩu cố định trên chỉ phù hợp cho bản trình diễn. Khi triển khai thật, nên đổi mật khẩu giáo viên qua biến môi trường và tạo mật khẩu tạm thời ngẫu nhiên cho từng học sinh.
+
+## Vercel npm registry troubleshooting
+
+This repository's `package-lock.json` is portable and uses only `https://registry.npmjs.org/` tarball URLs. Before deployment, you can verify it with:
+
+```bash
+npm run check:lock
+```
+
+If Vercel ever shows an internal/private registry hostname, make sure the committed `package-lock.json` from this repository replaced the old file, then redeploy with **Clear build cache**. The configured Vercel install command also explicitly uses the public npm registry.
+
+Warnings about deprecated transitive packages from ExcelJS do not stop installation. An `ETIMEDOUT` to a private registry, by contrast, means an old lockfile is still deployed.
