@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatResponse, PublicRole, RoleId } from "../lib/api";
-import { deleteSession, fetchRoles, fetchSessionMessages, sendChat } from "../lib/api";
+import { deleteSession, fetchRoles, fetchSessionMessages, initializeAuth, sendChat } from "../lib/api";
 import AccountPanel from "./AccountPanel";
 
 type UiMessage = { id: string; role: "user" | "assistant"; content: string };
@@ -30,6 +30,7 @@ export default function ChatShell() {
   const [messages, setMessages] = useState<UiMessage[]>([{ id: uid(), role: "assistant", content: INITIAL_MESSAGE }]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customPersonaEnabled, setCustomPersonaEnabled] = useState(false);
@@ -45,9 +46,26 @@ export default function ChatShell() {
   useEffect(() => { localStorage.setItem(SESSION_STORAGE_KEY, sessionId); }, [sessionId]);
   useEffect(() => {
     let cancelled = false;
-    void fetchSessionMessages(sessionId).then((data) => {
-      if (!cancelled && data.messages.length) setMessages(data.messages.map((m) => ({ ...m, id: uid() })));
-    }).catch(() => undefined);
+    async function bootstrapPrivateSession() {
+      try {
+        await initializeAuth();
+        if (cancelled) return;
+        setAuthReady(true);
+        try {
+          const data = await fetchSessionMessages(sessionId);
+          if (!cancelled && data.messages.length) {
+            setMessages(data.messages.map((m) => ({ ...m, id: uid() })));
+          }
+        } catch {
+          // A new or expired guest session has no history yet.
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Không thể khởi tạo phiên riêng tư.");
+        }
+      }
+    }
+    void bootstrapPrivateSession();
     return () => { cancelled = true; };
   }, [sessionId]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
@@ -58,7 +76,7 @@ export default function ChatShell() {
   }, []);
 
   const selectedRoleInfo = useMemo(() => roles.find((role) => role.id === selectedRole), [roles, selectedRole]);
-  const canSend = input.trim().length > 0 && input.length <= 4000 && !sending && (!customPersonaEnabled || customPersonaPrompt.trim().length >= 10);
+  const canSend = authReady && input.trim().length > 0 && input.length <= 4000 && !sending && (!customPersonaEnabled || customPersonaPrompt.trim().length >= 10);
 
   async function clearConversation() {
     try { await deleteSession(sessionId); } catch { /* no-op */ }
@@ -70,7 +88,10 @@ export default function ChatShell() {
 
   async function handleSend(prefill?: string) {
     const text = (prefill ?? input).trim();
-    if (!text || sending) return;
+    if (!text || sending || !authReady) {
+      if (!authReady) setError("Phiên riêng tư đang được khởi tạo. Vui lòng thử lại trong giây lát.");
+      return;
+    }
     if (text.length > 4000) { setError("Tin nhắn tối đa 4.000 ký tự."); return; }
     if (customPersonaEnabled && customPersonaPrompt.trim().length < 10) { setError("Mô tả phong cách cần ít nhất 10 ký tự."); return; }
     setSending(true); setError(""); setInput("");
@@ -115,14 +136,14 @@ export default function ChatShell() {
               <div className="message-content">{message.content}</div>
             </article>
           ))}
-          {messages.length === 1 && !sending && <div className="starter-row">{STARTERS.map((starter) => <button key={starter} type="button" onClick={() => void handleSend(starter)}>{starter}</button>)}</div>}
+          {messages.length === 1 && !sending && authReady && <div className="starter-row">{STARTERS.map((starter) => <button key={starter} type="button" onClick={() => void handleSend(starter)}>{starter}</button>)}</div>}
           {sending && <article className="chat-message assistant"><div className="assistant-mark">A</div><div className="typing-indicator" aria-label="Đang phản hồi"><span/><span/><span/></div></article>}
           <div ref={bottomRef} />
         </div>
 
         <div className="composer-wrap">
           <div className="composer-box">
-            <textarea ref={textareaRef} value={input} maxLength={4000} rows={3} placeholder="Chia sẻ điều bạn đang nghĩ..." onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }} />
+            <textarea ref={textareaRef} value={input} maxLength={4000} rows={3} placeholder={authReady ? "Chia sẻ điều bạn đang nghĩ..." : "Đang khởi tạo phiên riêng tư..."} onChange={(e) => setInput(e.target.value)} disabled={!authReady} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }} />
             <div className="composer-bottom"><span>{input.length ? `${input.length}/4000` : "Enter để gửi · Shift + Enter để xuống dòng"}</span><button type="button" onClick={() => void handleSend()} disabled={!canSend} aria-label="Gửi tin nhắn">↑</button></div>
           </div>
           <p className="safety-note">An Tâm không thay thế chuyên gia sức khỏe tâm thần hoặc dịch vụ cấp cứu.</p>

@@ -3,7 +3,8 @@ import React from "react";
 
 export const metadata: Metadata = {
   title: { default: "An Tâm — Cố vấn tinh thần học đường", template: "%s · An Tâm" },
-  description: "Không gian hỗ trợ tinh thần ban đầu, riêng tư và không phán xét dành cho học sinh, sinh viên Việt Nam"
+  description: "Không gian hỗ trợ tinh thần ban đầu, riêng tư và không phán xét dành cho học sinh, sinh viên Việt Nam",
+  icons: { icon: "/icon.svg" }
 };
 
 export default function RootLayout({

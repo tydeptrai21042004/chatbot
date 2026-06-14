@@ -80,6 +80,26 @@ export interface SessionMessagesResponse {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "/api";
 
+export interface AuthIdentity {
+  id: string;
+  role: "guest" | "student" | "teacher";
+  name: string;
+  email?: string;
+}
+
+export async function initializeAuth(): Promise<AuthIdentity> {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "same-origin"
+  });
+  const data = (await response.json()) as { ok?: boolean; identity?: AuthIdentity; error?: string };
+  if (!response.ok || !data.ok || !data.identity) {
+    throw new Error(data.error || "Không thể khởi tạo phiên riêng tư.");
+  }
+  return data.identity;
+}
+
 const DEFAULT_ROLES: PublicRole[] = [
   {
     id: "nguoi-ban-diu-dang",
@@ -110,7 +130,8 @@ export async function fetchRoles(): Promise<RolesResponse> {
       headers: {
         "Content-Type": "application/json"
       },
-      cache: "no-store"
+      cache: "no-store",
+      credentials: "same-origin"
     });
 
     const data = (await response.json()) as RolesResponse;
@@ -136,6 +157,7 @@ export async function sendChat(payload: SendChatPayload): Promise<ChatResponse> 
       "Content-Type": "application/json"
     },
     cache: "no-store",
+    credentials: "same-origin",
     body: JSON.stringify(payload)
   });
 
@@ -158,7 +180,8 @@ export async function fetchSessionMessages(
     headers: {
       "Content-Type": "application/json"
     },
-    cache: "no-store"
+    cache: "no-store",
+    credentials: "same-origin"
   });
 
   const data = (await response.json()) as SessionMessagesResponse & {
@@ -173,6 +196,6 @@ export async function fetchSessionMessages(
 }
 
 export async function deleteSession(sessionId:string):Promise<void>{
-  const response=await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}`,{method:"DELETE",cache:"no-store"});
+  const response=await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}`,{method:"DELETE",cache:"no-store",credentials:"same-origin"});
   if(!response.ok) throw new Error("Không thể xoá phiên chat.");
 }
