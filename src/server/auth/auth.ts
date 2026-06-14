@@ -2,7 +2,7 @@ import { createHmac, randomUUID, scryptSync, timingSafeEqual } from "node:crypto
 import type { NextRequest, NextResponse } from "next/server";
 
 export type AccountRole = "guest" | "student" | "teacher";
-export type Identity = { id: string; role: AccountRole; name: string; email?: string };
+export type Identity = { id: string; role: AccountRole; name: string; email?: string; mustChangePassword?: boolean };
 const COOKIE = "advisor_auth";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
@@ -24,7 +24,7 @@ export function readIdentity(request: NextRequest): Identity | null {
   try {
     const data = JSON.parse(unb64(payload));
     if (!data.exp || data.exp < Date.now()/1000) return null;
-    return { id: data.id, role: data.role, name: data.name, email: data.email };
+    return { id: data.id, role: data.role, name: data.name, email: data.email, mustChangePassword: Boolean(data.mustChangePassword) };
   } catch { return null; }
 }
 export function guestIdentity(): Identity { return { id: `guest_${randomUUID()}`, role: "guest", name: "Khách" }; }

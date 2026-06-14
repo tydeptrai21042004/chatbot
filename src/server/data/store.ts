@@ -12,6 +12,7 @@ export type User = {
   passwordHash: string;
   studentCode?: string;
   createdAt: number;
+  mustChangePassword?: boolean;
 };
 
 export type AcademicRecord = {
@@ -118,6 +119,8 @@ function readSession(ownerId: string, sessionId: string): SessionFile | null {
   return readJson<SessionFile | null>(file, null);
 }
 
+export function listUsers() { return clone(readJson(usersFile(), emptyUsers()).users); }
+export function findUserById(id: string) { return readJson(usersFile(), emptyUsers()).users.find(u => u.id === id); }
 export function findUserByEmail(email: string) {
   const normalized = email.trim().toLowerCase();
   return readJson(usersFile(), emptyUsers()).users.find(u => u.email.toLowerCase() === normalized);
@@ -140,6 +143,33 @@ export function createUser(input: Omit<User, "id" | "createdAt">) {
   atomicWrite(usersFile(), db);
   return clone(user);
 }
+
+export function updateUserPassword(userId: string, passwordHash: string, mustChangePassword = false) {
+  const db = readJson(usersFile(), emptyUsers());
+  const user = db.users.find(u => u.id === userId);
+  if (!user) throw new Error("USER_NOT_FOUND");
+  user.passwordHash = passwordHash;
+  user.mustChangePassword = mustChangePassword;
+  atomicWrite(usersFile(), db);
+  return clone(user);
+}
+
+export function ensureFixedTeacher(passwordHash: string) {
+  const existing = findUserByEmail("1@gmail.com");
+  if (existing) {
+    const db = readJson(usersFile(), emptyUsers());
+    const teacher = db.users.find(u => u.id === existing.id)!;
+    teacher.name = "Giáo viên";
+    teacher.role = "teacher";
+    teacher.passwordHash = passwordHash;
+    teacher.mustChangePassword = false;
+    teacher.studentCode = undefined;
+    atomicWrite(usersFile(), db);
+    return clone(teacher);
+  }
+  return createUser({ email: "1@gmail.com", name: "Giáo viên", role: "teacher", passwordHash, mustChangePassword: false });
+}
+
 export function getOwnedSession(id: string, ownerId: string) {
   return clone(readSession(ownerId, id)?.session);
 }

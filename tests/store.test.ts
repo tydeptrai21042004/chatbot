@@ -153,3 +153,38 @@ describe("serverless data directory resolution", () => {
     else process.env.DATA_DIR = previousDataDir;
   });
 });
+
+describe("teacher-provisioned student accounts", () => {
+  it("stores the first-login password-change requirement", () => {
+    const user = createUser({
+      email: "provisioned@gmail.com",
+      name: "Provisioned Student",
+      role: "student",
+      studentCode: "PV001",
+      passwordHash: "temporary-hash",
+      mustChangePassword: true
+    });
+    expect(findUserByEmail("provisioned@gmail.com")?.mustChangePassword).toBe(true);
+    expect(user.role).toBe("student");
+  });
+
+  it("clears the first-login requirement after a password update", async () => {
+    const { updateUserPassword } = await import("../src/server/data/store");
+    const user = createUser({
+      email: "change@gmail.com",
+      name: "Change Student",
+      role: "student",
+      studentCode: "PV002",
+      passwordHash: "temporary-hash",
+      mustChangePassword: true
+    });
+    updateUserPassword(user.id, "new-hash", false);
+    expect(findUserByEmail("change@gmail.com")?.mustChangePassword).toBe(false);
+    expect(findUserByEmail("change@gmail.com")?.passwordHash).toBe("new-hash");
+  });
+
+  it("prevents a second account from reusing an imported student code", () => {
+    createUser({ email:"first@gmail.com", name:"First", role:"student", studentCode:"DUP100", passwordHash:"x", mustChangePassword:true });
+    expect(() => createUser({ email:"second@gmail.com", name:"Second", role:"student", studentCode:"dup100", passwordHash:"x", mustChangePassword:true })).toThrow("STUDENT_CODE_EXISTS");
+  });
+});

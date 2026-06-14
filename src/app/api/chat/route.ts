@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
   try {
     const identity = readIdentity(request);
     if (!identity) return NextResponse.json({ ok:false, error:"Phiên đăng nhập không hợp lệ" }, { status:401 });
+    if (identity.mustChangePassword) return NextResponse.json({ ok:false, error:"Bạn phải đổi mật khẩu trước khi trò chuyện" }, { status:403 });
     const rate = checkRateLimit(identity.id);
     if (!rate.ok) return NextResponse.json({ ok:false, error:"Bạn gửi quá nhanh. Vui lòng thử lại sau." }, { status:429, headers:{"Retry-After":String(rate.retryAfter)} });
     let body: unknown;

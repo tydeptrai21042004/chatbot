@@ -172,3 +172,17 @@ npm ci --no-audit --no-fund
 Set `GEMINI_API_KEY` and `AUTH_SECRET` in Vercel Project Settings. Do not set `DATA_DIR=./data` on Vercel because the deployed application directory is read-only. When `VERCEL=1` and `DATA_DIR` is unset, the app automatically uses `/tmp/an-tam-data`.
 
 **Important:** Vercel `/tmp` storage is ephemeral. Registration, imported grades, and chat history may disappear after a cold start or run on a different function instance. The local-file mode is durable only on a single server/VPS with a persistent disk.
+
+
+## Quy trình cấp tài khoản học sinh
+
+- Học sinh **không thể tự đăng ký**.
+- Tài khoản giáo viên cố định: `1@gmail.com` / `123`.
+- Giáo viên tải file mẫu tại `/mau-import-hoc-sinh.xlsx`, điền dữ liệu rồi nhập lên website.
+- Các cột bắt buộc: `Mã học sinh`, `Họ và tên`, `Lớp`, `Gmail`, `Môn học`, `Học kỳ`, `Điểm`.
+- Một học sinh có thể xuất hiện ở nhiều dòng cho nhiều môn, nhưng phải dùng cùng mã, họ tên và Gmail.
+- Hệ thống tạo tài khoản học sinh với mật khẩu mặc định `123456`.
+- Khi đăng nhập lần đầu, học sinh bắt buộc đổi sang mật khẩu mới ít nhất 8 ký tự trước khi chat.
+- Import lại cùng học sinh không tạo tài khoản trùng; điểm cùng môn/học kỳ được cập nhật.
+
+> Các mật khẩu cố định trên chỉ phù hợp cho bản trình diễn. Khi triển khai thật, nên đổi mật khẩu giáo viên qua biến môi trường và tạo mật khẩu tạm thời ngẫu nhiên cho từng học sinh.

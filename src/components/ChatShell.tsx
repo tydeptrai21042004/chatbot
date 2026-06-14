@@ -31,6 +31,7 @@ export default function ChatShell() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customPersonaEnabled, setCustomPersonaEnabled] = useState(false);
@@ -48,9 +49,11 @@ export default function ChatShell() {
     let cancelled = false;
     async function bootstrapPrivateSession() {
       try {
-        await initializeAuth();
+        const identity = await initializeAuth();
         if (cancelled) return;
-        setAuthReady(true);
+        setMustChangePassword(Boolean(identity.mustChangePassword));
+        if (identity.mustChangePassword) { setSettingsOpen(true); setError("Bạn cần đổi mật khẩu lần đầu trước khi trò chuyện."); }
+        setAuthReady(!identity.mustChangePassword);
         try {
           const data = await fetchSessionMessages(sessionId);
           if (!cancelled && data.messages.length) {

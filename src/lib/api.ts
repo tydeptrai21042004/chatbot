@@ -85,6 +85,7 @@ export interface AuthIdentity {
   role: "guest" | "student" | "teacher";
   name: string;
   email?: string;
+  mustChangePassword?: boolean;
 }
 
 export async function initializeAuth(): Promise<AuthIdentity> {
