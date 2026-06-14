@@ -76,3 +76,48 @@ describe("local file storage", () => {
     expect(fs.existsSync(path.join(tempDir, "users.json.bak"))).toBe(true);
   });
 });
+
+describe("local storage edge cases", () => {
+  it("normalizes email and rejects duplicate email regardless of case", () => {
+    createUser({ email: "Case@Test.com", name: "A", role: "teacher", passwordHash: "hash" });
+    expect(() => createUser({ email: " case@test.COM ", name: "B", role: "teacher", passwordHash: "hash" })).toThrow("EMAIL_EXISTS");
+  });
+
+  it("rejects academic records from mixed teachers in one operation", () => {
+    expect(() => addAcademicRecords([
+      { studentId: "S1", studentName: "A", className: "1A", subject: "Toán", semester: "HK1", score: 8, teacherId: "T1" },
+      { studentId: "S2", studentName: "B", className: "1A", subject: "Văn", semester: "HK1", score: 7, teacherId: "T2" }
+    ])).toThrow("MIXED_TEACHERS");
+  });
+
+  it("returns zero for an empty academic import", () => {
+    expect(addAcademicRecords([])).toBe(0);
+  });
+
+  it("fails clearly when appending to a missing session", () => {
+    expect(() => appendMessage("missing", "owner", { role: "user", content: "hello", timestamp: Date.now() })).toThrow("SESSION_NOT_FOUND");
+  });
+
+  it("returns false when deleting a session that does not exist", () => {
+    expect(deleteOwnedSession("missing", "owner")).toBe(false);
+  });
+
+  it("recovers users from the backup when the primary JSON is corrupted", () => {
+    createUser({ email: "first@example.com", name: "First", role: "teacher", passwordHash: "hash" });
+    createUser({ email: "second@example.com", name: "Second", role: "teacher", passwordHash: "hash" });
+    fs.writeFileSync(path.join(tempDir, "users.json"), "{broken-json", "utf8");
+    expect(findUserByEmail("first@example.com")?.name).toBe("First");
+  });
+
+  it("does not expose one teacher's academic rows to another teacher", () => {
+    addAcademicRecords([{ studentId: "S1", studentName: "A", className: "1A", subject: "Toán", semester: "HK1", score: 8, teacherId: "T1" }]);
+    expect(teacherRecords("T1")).toHaveLength(1);
+    expect(teacherRecords("T2")).toHaveLength(0);
+  });
+
+  it("falls back to email prefix when a student code is absent", () => {
+    const user = createUser({ email: "fallback01@example.com", name: "Fallback", role: "student", passwordHash: "hash" });
+    addAcademicRecords([{ studentId: "FALLBACK01", studentName: "Fallback", className: "2A", subject: "Anh", semester: "HK2", score: 9, teacherId: "T1" }]);
+    expect(studentRecords(user)).toHaveLength(1);
+  });
+});

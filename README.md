@@ -68,6 +68,17 @@ Khi tạo tài khoản học sinh, nhập đúng **mã học sinh/sinh viên** x
 
 File mẫu: `examples/vnedu_sample.xlsx`.
 
+## Cải tiến giao diện
+
+- Form đăng nhập và tạo tài khoản tách thành tab rõ ràng.
+- Nhãn vai trò cho khách, học sinh và giáo viên.
+- Thẻ thông tin quyền riêng tư và giới hạn của chatbot.
+- Thống kê nhanh số bản ghi, số học sinh/môn học và điểm trung bình.
+- Vùng nhập file có trạng thái đang xử lý, kiểm tra dung lượng và thông báo kết quả.
+- Danh sách điểm gọn, có empty state và phù hợp màn hình nhỏ.
+- Bộ đếm ký tự trong ô chat và nhãn “Riêng tư / Không chẩn đoán”.
+- Metadata và nội dung tiếng Việt được chuẩn hóa.
+
 ## Cài đặt
 
 ```bash
@@ -127,7 +138,14 @@ npm test
 npm run build
 ```
 
-Bộ test kiểm tra crisis rules, quyền sở hữu phiên, xóa thật, phục hồi `.bak`, chống trùng tài khoản và cập nhật bản ghi điểm trùng.
+Bộ kiểm thử hiện có **35 test case** bao phủ:
+
+- Nguy cơ tức thời, phủ định, ngữ cảnh học thuật/phim truyện và báo cáo nguy cơ của người thứ ba.
+- Mật khẩu băm, token ký, dữ liệu xác thực hỏng và mật khẩu sai.
+- Rate limit, bucket độc lập và tự đặt lại sau cửa sổ thời gian.
+- Quyền sở hữu phiên, xóa file thật, session không tồn tại và cô lập giữa người dùng.
+- Phục hồi từ `.bak`, email/mã học sinh trùng, import rỗng và dữ liệu từ nhiều giáo viên.
+- Upsert điểm trùng, ghép bằng mã học sinh và phương án dự phòng bằng tiền tố email.
 
 ## Giới hạn triển khai thực tế
 
@@ -135,3 +153,10 @@ Bộ test kiểm tra crisis rules, quyền sở hữu phiên, xóa thật, phụ
 - Rate limit nằm trong RAM và được đặt lại khi ứng dụng khởi động lại.
 - Quản trị viên máy chủ vẫn có quyền truy cập file dữ liệu; cần phân quyền thư mục và mã hóa ổ đĩa.
 - Trước khi sử dụng với trẻ vị thành niên, cần quy trình đồng ý, thời hạn lưu dữ liệu, người phụ trách xử lý khẩn cấp và chuyên gia tâm lý duyệt nội dung.
+
+## Production-style interface
+
+- `/` is a focused animated landing page with clear positioning and a single primary call to action.
+- `/chat` is the distraction-free conversation workspace.
+- Account, teacher import, student data, role selection, and persona options are moved into a slide-over settings drawer.
+- Motion respects the operating system `prefers-reduced-motion` accessibility setting.
