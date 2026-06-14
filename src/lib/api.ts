@@ -171,3 +171,8 @@ export async function fetchSessionMessages(
 
   return data;
 }
+
+export async function deleteSession(sessionId:string):Promise<void>{
+  const response=await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}`,{method:"DELETE",cache:"no-store"});
+  if(!response.ok) throw new Error("Không thể xoá phiên chat.");
+}

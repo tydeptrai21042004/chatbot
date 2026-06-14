@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatResponse, PublicRole, RoleId } from "../lib/api";
-import { fetchRoles, fetchSessionMessages, sendChat } from "../lib/api";
+import { fetchRoles, fetchSessionMessages, sendChat, deleteSession } from "../lib/api";
+import AccountPanel from "./AccountPanel";
 
 type UiMessage = {
   id: string;
@@ -187,7 +188,8 @@ export default function ChatShell() {
     setLastMeta(null);
   }
 
-  function clearConversation() {
+  async function clearConversation() {
+    try { await deleteSession(sessionId); } catch { /* session may not exist yet */ }
     resetConversationState();
     textareaRef.current?.focus();
   }
@@ -316,6 +318,7 @@ export default function ChatShell() {
 
       <section className="chat-layout">
         <aside className="side-panel">
+          <AccountPanel />
           <div className="panel-card">
             <div className="panel-title">Phong cách hỗ trợ</div>
             <div className="panel-desc">
@@ -434,7 +437,7 @@ export default function ChatShell() {
               </div>
             </div>
 
-            <button type="button" className="ghost-button" onClick={clearConversation}>
+            <button type="button" className="ghost-button" onClick={() => void clearConversation()}>
               Xoá chat
             </button>
           </div>
@@ -514,6 +517,7 @@ export default function ChatShell() {
             </label>
 
             <textarea
+                maxLength={4000}
               id="chat-input"
               ref={textareaRef}
               className="composer-input"

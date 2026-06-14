@@ -196,7 +196,7 @@ function looksIncomplete(text: string): boolean {
   const cleaned = text.trim();
 
   if (!cleaned) return true;
-  if (cleaned.length < 24) return true;
+  if (cleaned.length < 8) return true;
 
   const completeEnding = /[.!?…"”'’)\]]$/;
   if (completeEnding.test(cleaned)) return false;
@@ -207,7 +207,7 @@ function looksIncomplete(text: string): boolean {
 
   if (/[,:;–-]$/.test(cleaned)) return true;
 
-  return true;
+  return false;
 }
 
 async function generateModelText(input: {

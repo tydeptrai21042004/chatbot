@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { readIdentity } from "@/src/server/auth/auth";
+import { checkRateLimit } from "@/src/server/utils/rateLimit";
 
 import {
   DEFAULT_ROLE_ID,
@@ -42,6 +44,10 @@ const ChatBodySchema = z
   })
   .superRefine((data, ctx) => {
     if (data.customPersonaEnabled) {
+      const unsafePersona = /(ignore|bỏ qua|vô hiệu|override).{0,30}(system|hệ thống|an toàn|quy tắc)|đóng vai bác sĩ|chẩn đoán/i.test(data.customPersonaPrompt || "");
+      if (unsafePersona) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["customPersonaPrompt"], message: "Mô tả phong cách chứa chỉ dẫn không được phép." });
+      }
       if (!data.customPersonaPrompt || data.customPersonaPrompt.trim().length < 10) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -118,7 +124,12 @@ function buildPersonaPrompt(input: {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const identity = readIdentity(request);
+    if (!identity) return NextResponse.json({ ok:false, error:"Phiên đăng nhập không hợp lệ" }, { status:401 });
+    const rate = checkRateLimit(identity.id);
+    if (!rate.ok) return NextResponse.json({ ok:false, error:"Bạn gửi quá nhanh. Vui lòng thử lại sau." }, { status:429, headers:{"Retry-After":String(rate.retryAfter)} });
+    let body: unknown;
+    try { body = await request.json(); } catch { return NextResponse.json({ok:false,error:"JSON không hợp lệ"},{status:400}); }
     const parsed = ChatBodySchema.safeParse(body);
 
     if (!parsed.success) {
@@ -142,8 +153,10 @@ export async function POST(request: NextRequest) {
     } = parsed.data;
 
     const persona = getPersonaById(roleId);
-    const session = getOrCreateSession(sessionId, persona.id);
+    const session = getOrCreateSession(sessionId, identity.id, persona.id);
     session.roleId = persona.id;
+    // Materialize a new local session file before message appends.
+    saveSession(session);
 
     const normalizedCustomPersona = normalizeCustomPersona({
       enabled: customPersonaEnabled,
@@ -198,10 +211,10 @@ export async function POST(request: NextRequest) {
       });
 
       const userTurn = appendTurnToSession(session, "user", message);
-      saveSessionTurn(session.sessionId, userTurn);
+      saveSessionTurn(session.sessionId, identity.id, userTurn);
 
       const assistantTurn = appendTurnToSession(session, "assistant", helpNowReply);
-      saveSessionTurn(session.sessionId, assistantTurn);
+      saveSessionTurn(session.sessionId, identity.id, assistantTurn);
 
       const memoryRefresh = await refreshSessionMemoryIfNeeded(session);
       saveSession(session);
@@ -250,10 +263,10 @@ export async function POST(request: NextRequest) {
       );
 
       const userTurn = appendTurnToSession(session, "user", message);
-      saveSessionTurn(session.sessionId, userTurn);
+      saveSessionTurn(session.sessionId, identity.id, userTurn);
 
       const assistantTurn = appendTurnToSession(session, "assistant", finalReply);
-      saveSessionTurn(session.sessionId, assistantTurn);
+      saveSessionTurn(session.sessionId, identity.id, assistantTurn);
 
       const memoryRefresh = await refreshSessionMemoryIfNeeded(session);
       saveSession(session);
@@ -287,10 +300,10 @@ export async function POST(request: NextRequest) {
           : "Mình đang gặp trục trặc kỹ thuật một chút, nhưng vẫn muốn hỗ trợ em. Em có thể nói ngắn gọn điều đang làm em mệt nhất lúc này không?";
 
       const userTurn = appendTurnToSession(session, "user", message);
-      saveSessionTurn(session.sessionId, userTurn);
+      saveSessionTurn(session.sessionId, identity.id, userTurn);
 
       const assistantTurn = appendTurnToSession(session, "assistant", fallbackReply);
-      saveSessionTurn(session.sessionId, assistantTurn);
+      saveSessionTurn(session.sessionId, identity.id, assistantTurn);
 
       const memoryRefresh = await refreshSessionMemoryIfNeeded(session);
       saveSession(session);
@@ -320,14 +333,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-
+    const requestId = crypto.randomUUID();
+    console.error("chat request failed", requestId, error);
     return NextResponse.json(
-      {
-        ok: false,
-        error: message
-      },
+      { ok: false, error: "Lỗi máy chủ nội bộ", requestId },
       { status: 500 }
     );
   }
