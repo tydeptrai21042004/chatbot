@@ -35,12 +35,34 @@ const MAX_SESSIONS_PER_OWNER = Number(process.env.MAX_SESSIONS_PER_OWNER || 30);
 const SESSION_RETENTION_DAYS = Number(process.env.SESSION_RETENTION_DAYS || 90);
 const MAX_ACADEMIC_RECORDS_PER_TEACHER = Number(process.env.MAX_ACADEMIC_RECORDS_PER_TEACHER || 20_000);
 
-function rootDir() {
-  if (process.env.DATA_DIR) return process.env.DATA_DIR;
-  // Vercel Functions expose only /tmp as writable local storage. This keeps the
-  // demo deployable, but /tmp is ephemeral and must not be treated as durable.
-  if (process.env.VERCEL) return path.join("/tmp", "an-tam-data");
+function isServerlessRuntime() {
+  return Boolean(
+    process.env.VERCEL ||
+    process.env.NOW_REGION ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.AWS_EXECUTION_ENV ||
+    process.cwd().startsWith("/var/task")
+  );
+}
+
+export function resolveDataRoot() {
+  const configured = process.env.DATA_DIR?.trim();
+
+  // Vercel/Lambda deployment bundles are read-only. Never accept a relative
+  // DATA_DIR such as ./data there, because it resolves inside the bundle.
+  if (isServerlessRuntime()) {
+    if (configured && path.isAbsolute(configured) && configured.startsWith("/tmp/")) {
+      return path.normalize(configured);
+    }
+    return path.join("/tmp", "an-tam-data");
+  }
+
+  if (configured) return path.resolve(configured);
   return path.join(process.cwd(), "data");
+}
+
+function rootDir() {
+  return resolveDataRoot();
 }
 function usersFile() { return path.join(rootDir(), "users.json"); }
 function sessionsDir() { return path.join(rootDir(), "sessions"); }
@@ -52,7 +74,10 @@ function sessionFile(ownerId: string, sessionId: string) {
 }
 function academicFile(teacherId: string) { return path.join(academicsDir(), `${safeKey(teacherId)}.json`); }
 
-function ensureParent(file: string) { fs.mkdirSync(path.dirname(file), { recursive: true }); }
+function ensureParent(file: string) {
+  const parent = path.dirname(file);
+  fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+}
 function clone<T>(value: T): T { return structuredClone(value); }
 function readJson<T>(file: string, fallback: T): T {
   try {

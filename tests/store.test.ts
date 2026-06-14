@@ -121,3 +121,35 @@ describe("local storage edge cases", () => {
     expect(studentRecords(user)).toHaveLength(1);
   });
 });
+
+describe("serverless data directory resolution", () => {
+  it("ignores a relative DATA_DIR on Vercel and uses /tmp", async () => {
+    const previousVercel = process.env.VERCEL;
+    const previousDataDir = process.env.DATA_DIR;
+    process.env.VERCEL = "1";
+    process.env.DATA_DIR = "./data";
+
+    const { resolveDataRoot } = await import("../src/server/data/store");
+    expect(resolveDataRoot()).toBe(path.join("/tmp", "an-tam-data"));
+
+    if (previousVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previousVercel;
+    if (previousDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = previousDataDir;
+  });
+
+  it("allows an explicit absolute /tmp directory on Vercel", async () => {
+    const previousVercel = process.env.VERCEL;
+    const previousDataDir = process.env.DATA_DIR;
+    process.env.VERCEL = "1";
+    process.env.DATA_DIR = "/tmp/custom-an-tam";
+
+    const { resolveDataRoot } = await import("../src/server/data/store");
+    expect(resolveDataRoot()).toBe("/tmp/custom-an-tam");
+
+    if (previousVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previousVercel;
+    if (previousDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = previousDataDir;
+  });
+});
