@@ -13,6 +13,7 @@
     "data:cleanup": "node scripts/cleanup-data.mjs"
   },
   "dependencies": {
+    "@neondatabase/serverless": "1.0.2",
     "exceljs": "4.4.0",
     "next": "16.2.9",
     "react": "19.2.7",

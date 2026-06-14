@@ -154,10 +154,10 @@ export async function POST(request: NextRequest) {
     } = parsed.data;
 
     const persona = getPersonaById(roleId);
-    const session = getOrCreateSession(sessionId, identity.id, persona.id);
+    const session = await getOrCreateSession(sessionId, identity.id, persona.id);
     session.roleId = persona.id;
     // Materialize a new local session file before message appends.
-    saveSession(session);
+    await saveSession(session);
 
     const normalizedCustomPersona = normalizeCustomPersona({
       enabled: customPersonaEnabled,
@@ -212,13 +212,13 @@ export async function POST(request: NextRequest) {
       });
 
       const userTurn = appendTurnToSession(session, "user", message);
-      saveSessionTurn(session.sessionId, identity.id, userTurn);
+      await saveSessionTurn(session.sessionId, identity.id, userTurn);
 
       const assistantTurn = appendTurnToSession(session, "assistant", helpNowReply);
-      saveSessionTurn(session.sessionId, identity.id, assistantTurn);
+      await saveSessionTurn(session.sessionId, identity.id, assistantTurn);
 
       const memoryRefresh = await refreshSessionMemoryIfNeeded(session);
-      saveSession(session);
+      await saveSession(session);
 
       return NextResponse.json({
         ok: true,
@@ -264,13 +264,13 @@ export async function POST(request: NextRequest) {
       );
 
       const userTurn = appendTurnToSession(session, "user", message);
-      saveSessionTurn(session.sessionId, identity.id, userTurn);
+      await saveSessionTurn(session.sessionId, identity.id, userTurn);
 
       const assistantTurn = appendTurnToSession(session, "assistant", finalReply);
-      saveSessionTurn(session.sessionId, identity.id, assistantTurn);
+      await saveSessionTurn(session.sessionId, identity.id, assistantTurn);
 
       const memoryRefresh = await refreshSessionMemoryIfNeeded(session);
-      saveSession(session);
+      await saveSession(session);
 
       return NextResponse.json({
         ok: true,
@@ -301,13 +301,13 @@ export async function POST(request: NextRequest) {
           : "Mình đang gặp trục trặc kỹ thuật một chút, nhưng vẫn muốn hỗ trợ em. Em có thể nói ngắn gọn điều đang làm em mệt nhất lúc này không?";
 
       const userTurn = appendTurnToSession(session, "user", message);
-      saveSessionTurn(session.sessionId, identity.id, userTurn);
+      await saveSessionTurn(session.sessionId, identity.id, userTurn);
 
       const assistantTurn = appendTurnToSession(session, "assistant", fallbackReply);
-      saveSessionTurn(session.sessionId, identity.id, assistantTurn);
+      await saveSessionTurn(session.sessionId, identity.id, assistantTurn);
 
       const memoryRefresh = await refreshSessionMemoryIfNeeded(session);
-      saveSession(session);
+      await saveSession(session);
 
       return NextResponse.json({
         ok: true,

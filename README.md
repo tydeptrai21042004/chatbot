@@ -1,3 +1,22 @@
+# An Tâm — Neon database edition
+
+This version uses **Neon Postgres** when `DATABASE_URL` is configured. Accounts, password changes, academic records, and chat sessions then persist across browsers and Vercel function instances. Without `DATABASE_URL`, local development falls back to JSON files.
+
+## Teacher workspace
+
+- URL: `/teacher`
+- Fixed teacher login: `1@gmail.com` / `123`
+- Create one student manually or import the provided Excel template.
+- Student default password: `123456`; first-login password change is mandatory.
+- Reset or delete student accounts from the teacher page.
+
+## Vercel + Neon setup
+
+1. In Vercel, open **Storage / Marketplace** and install **Neon Postgres** for this project.
+2. Neon/Vercel adds `DATABASE_URL` automatically. If not, copy the pooled connection string to the Production environment.
+3. Also configure `GEMINI_API_KEY` and a 32+ character `AUTH_SECRET`.
+4. Redeploy. The schema is created automatically on the first API request.
+
 # Student Mental Advisor — local-file edition
 
 Ứng dụng cố vấn sức khỏe tinh thần ban đầu cho học sinh/sinh viên Việt Nam. Dự án giữ chế độ **khách vãng lai**, đồng thời có tài khoản **học sinh/sinh viên** và **giáo viên**. Phiên bản này **không cần cơ sở dữ liệu** và phù hợp cho demo, cuộc thi hoặc triển khai trên **một máy chủ**.

@@ -33,11 +33,11 @@ export async function POST(req:NextRequest){
   for(const r of rows){const prior=students.get(r.studentId.toLowerCase());if(prior&&(prior.email!==r.email||prior.studentName!==r.studentName)){return NextResponse.json({ok:false,error:`Mã ${r.studentId} có Gmail hoặc họ tên không thống nhất.`},{status:409});}students.set(r.studentId.toLowerCase(),r);}
   let createdAccounts=0;
   for(const s of students.values()){
-   const existing=findUserByEmail(s.email);
+   const existing=await findUserByEmail(s.email);
    if(existing){if(existing.role!=="student"||existing.studentCode?.toLowerCase()!==s.studentId.toLowerCase())return NextResponse.json({ok:false,error:`Gmail ${s.email} đã thuộc tài khoản khác.`},{status:409});}
-   else {createUser({email:s.email,name:s.studentName,role:"student",studentCode:s.studentId,passwordHash:hashPassword("123456"),mustChangePassword:true});createdAccounts++;}
+   else {await createUser({email:s.email,name:s.studentName,role:"student",studentCode:s.studentId,passwordHash:hashPassword("123456"),mustChangePassword:true});createdAccounts++;}
   }
-  const count=addAcademicRecords(rows.map(r=>({studentId:r.studentId,studentName:r.studentName,className:r.className,subject:r.subject,semester:r.semester,score:r.score,teacherId:identity.id})));
+  const count=await addAcademicRecords(rows.map(r=>({studentId:r.studentId,studentName:r.studentName,className:r.className,subject:r.subject,semester:r.semester,score:r.score,teacherId:identity.id})));
   return NextResponse.json({ok:true,count,createdAccounts,defaultPassword:"123456"});
  }catch(e){console.error(e);return NextResponse.json({ok:false,error:"Không thể đọc file. Hãy dùng đúng file mẫu."},{status:400});}
 }
