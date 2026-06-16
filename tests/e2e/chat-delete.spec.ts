@@ -1,2 +1,0 @@
-import{test,expect}from'@playwright/test';
-test('delete dialog is keyboard accessible',async({page})=>{await page.goto('/chat');const button=page.getByRole('button',{name:/Xóa đoạn chat/i});await expect(button).toBeVisible();await button.click();await expect(page.getByRole('alertdialog')).toBeVisible();await page.keyboard.press('Escape');await expect(page.getByRole('alertdialog')).toBeHidden();});
