@@ -11,7 +11,12 @@
     "test:watch": "vitest",
     "data:backup": "node scripts/backup-data.mjs",
     "data:cleanup": "node scripts/cleanup-data.mjs",
-    "check:lock": "node scripts/check-public-lock.mjs"
+    "check:lock": "node scripts/check-public-lock.mjs",
+    "db:migrate": "node scripts/migrate-neon.mjs",
+    "data:retention": "node scripts/retention-cleanup.mjs",
+    "test:e2e": "playwright test",
+    "db:seed:teacher": "node scripts/seed-default-teacher.mjs",
+    "db:setup": "npm run db:migrate && npm run db:seed:teacher"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.0.2",
@@ -26,7 +31,8 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "vitest": "4.1.8",
+    "@playwright/test": "1.55.0"
   },
   "engines": {
     "node": "22.x"

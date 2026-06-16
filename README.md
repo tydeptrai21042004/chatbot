@@ -1,4 +1,4 @@
-# An Tâm — Neon database edition
+# Bạn đồng hành học đường — Neon database edition
 
 This version uses **Neon Postgres** when `DATABASE_URL` is configured. Accounts, password changes, academic records, and chat sessions then persist across browsers and Vercel function instances. Without `DATABASE_URL`, local development falls back to JSON files.
 
@@ -217,3 +217,15 @@ npm run check:lock
 If Vercel ever shows an internal/private registry hostname, make sure the committed `package-lock.json` from this repository replaced the old file, then redeploy with **Clear build cache**. The configured Vercel install command also explicitly uses the public npm registry.
 
 Warnings about deprecated transitive packages from ExcelJS do not stop installation. An `ETIMEDOUT` to a private registry, by contrast, means an old lockfile is still deployed.
+
+## Neon database setup and initial teacher
+
+```bash
+cp .env.example .env.local
+npm ci
+npm run db:migrate
+npm run db:seed:teacher
+npm run dev
+```
+
+Default initial teacher: `1@gmail.com` / `123`. The seeded account must change its password after first login. For an actual production environment, explicitly set `ALLOW_INSECURE_DEFAULT_TEACHER=true` only while running the initial seed, then remove it.

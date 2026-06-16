@@ -22,6 +22,8 @@ export type AcademicRecord = {
   className: string;
   subject: string;
   semester: string;
+  assessmentType?: string;
+  note?: string;
   score: number;
   teacherId: string;
   importedAt: number;
@@ -222,8 +224,8 @@ export function addAcademicRecords(records: Omit<AcademicRecord, "id" | "importe
   atomicWrite(file, data);
   return records.length;
 }
-function academicKey(r: Pick<AcademicRecord, "studentId" | "subject" | "semester" | "teacherId">) {
-  return [r.teacherId, r.studentId, r.subject, r.semester].map(x => x.trim().toLowerCase()).join("|");
+function academicKey(r: Pick<AcademicRecord, "studentId" | "subject" | "semester" | "assessmentType" | "teacherId">) {
+  return [r.teacherId, r.studentId, r.subject, r.semester, r.assessmentType || "Điểm tổng kết"].map(x => x.trim().toLowerCase()).join("|");
 }
 export function studentRecords(user: User) {
   const keys = new Set([
@@ -243,6 +245,45 @@ export function teacherRecords(teacherId: string) {
   return clone(readJson(academicFile(teacherId), emptyAcademic(teacherId)).records)
     .sort((a, b) => b.importedAt - a.importedAt);
 }
+
+export function deleteAcademicRecord(recordId:string,teacherId:string){
+  const file=academicFile(teacherId);
+  const data=readJson(file,emptyAcademic(teacherId));
+  const before=data.records.length;
+  data.records=data.records.filter(record=>record.id!==recordId||record.teacherId!==teacherId);
+  if(data.records.length===before)return false;
+  atomicWrite(file,data);
+  return true;
+}
+
+export function listStudentWellbeing(){
+  const latestByOwner=new Map<string,{ownerId:string;latestRiskLevel:"safe"|"distress"|"high_risk";latestReasons:string[];latestMatchedTerms:string[];lastAssessedAt:number;distressCount:number;highRiskCount:number;sessionCount:number}>();
+  let ownerDirs:string[]=[];
+  try{ownerDirs=fs.readdirSync(sessionsDir()).map(x=>path.join(sessionsDir(),x));}catch{return []}
+  for(const ownerDir of ownerDirs){
+    for(const file of listJsonFiles(ownerDir)){
+      const data=readJson<SessionFile|null>(file,null);
+      const wellbeing=data?.session.wellbeing;
+      if(!data||!wellbeing)continue;
+      const current=latestByOwner.get(data.session.ownerId);
+      if(!current){
+        latestByOwner.set(data.session.ownerId,{ownerId:data.session.ownerId,...wellbeing,sessionCount:1});
+      }else{
+        current.sessionCount++;
+        current.distressCount+=wellbeing.distressCount;
+        current.highRiskCount+=wellbeing.highRiskCount;
+        if(wellbeing.lastAssessedAt>current.lastAssessedAt){
+          current.latestRiskLevel=wellbeing.latestRiskLevel;
+          current.latestReasons=wellbeing.latestReasons;
+          current.latestMatchedTerms=wellbeing.latestMatchedTerms;
+          current.lastAssessedAt=wellbeing.lastAssessedAt;
+        }
+      }
+    }
+  }
+  return [...latestByOwner.values()];
+}
+
 export function createLocalBackup() {
   fs.mkdirSync(backupsDir(), { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

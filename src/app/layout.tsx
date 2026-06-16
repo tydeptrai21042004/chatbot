@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: { default: "An Tâm — Cố vấn tinh thần học đường", template: "%s · An Tâm" },
+  title: { default: "Bạn đồng hành học đường — Cố vấn tinh thần học đường", template: "%s · Bạn đồng hành học đường" },
   description: "Không gian hỗ trợ tinh thần ban đầu, riêng tư và không phán xét dành cho học sinh, sinh viên Việt Nam",
   icons: { icon: "/icon.svg" }
 };

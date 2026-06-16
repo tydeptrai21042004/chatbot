@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { readIdentity } from "@/src/server/auth/auth";
-import { checkRateLimit } from "@/src/server/utils/rateLimit";
+import { checkSharedRateLimit } from "@/src/server/utils/rateLimit";
+import { persistRiskAssessment } from "@/src/server/data/store";
+import { safeLogError } from "@/src/server/security/request";
 
 import {
   DEFAULT_ROLE_ID,
@@ -20,6 +22,7 @@ import {
   refreshSessionMemoryIfNeeded
 } from "@/src/server/services/memory";
 import { assessCrisisRisk } from "@/src/server/utils/crisis";
+import { scanSensitiveContent } from "@/src/server/utils/sensitive";
 import {
   getOrCreateSession,
   saveSession,
@@ -127,7 +130,7 @@ export async function POST(request: NextRequest) {
     const identity = readIdentity(request);
     if (!identity) return NextResponse.json({ ok:false, error:"Phiên đăng nhập không hợp lệ" }, { status:401 });
     if (identity.mustChangePassword) return NextResponse.json({ ok:false, error:"Bạn phải đổi mật khẩu trước khi trò chuyện" }, { status:403 });
-    const rate = checkRateLimit(identity.id);
+    const rate = await checkSharedRateLimit(`chat:${identity.id}`, 30, 60_000);
     if (!rate.ok) return NextResponse.json({ ok:false, error:"Bạn gửi quá nhanh. Vui lòng thử lại sau." }, { status:429, headers:{"Retry-After":String(rate.retryAfter)} });
     let body: unknown;
     try { body = await request.json(); } catch { return NextResponse.json({ok:false,error:"JSON không hợp lệ"},{status:400}); }
@@ -201,10 +204,22 @@ export async function POST(request: NextRequest) {
       }))
     ];
 
+    const sensitiveContent = scanSensitiveContent(message);
     const crisis = assessCrisisRisk({
       message,
       history: riskHistory
     });
+    const previousWellbeing = session.wellbeing;
+    session.wellbeing = {
+      latestRiskLevel: crisis.riskLevel,
+      latestReasons: crisis.reasons,
+      latestMatchedTerms: crisis.matchedTerms,
+      lastAssessedAt: Date.now(),
+      distressCount: (previousWellbeing?.distressCount || 0) + (crisis.riskLevel === "distress" ? 1 : 0),
+      highRiskCount: (previousWellbeing?.highRiskCount || 0) + (crisis.riskLevel === "high_risk" ? 1 : 0)
+    };
+
+    await persistRiskAssessment({ sessionId, ownerId: identity.id, riskLevel: crisis.riskLevel, reasons: crisis.reasons });
 
     if (crisis.shouldBypassModel) {
       const helpNowReply = createHelpNowReply({
@@ -228,6 +243,7 @@ export async function POST(request: NextRequest) {
         roleId: persona.id,
         reply: helpNowReply,
         crisis,
+        sensitiveContent,
         memory: buildResponseMemoryMeta({
           summaryUpdated: memoryRefresh.updated,
           stableFactsCount: session.stableFacts.length,
@@ -252,7 +268,7 @@ export async function POST(request: NextRequest) {
 
       const rawModelReply = await generateChatReply({
         systemPrompt,
-        userMessage: message,
+        userMessage: sensitiveContent.sanitizedText,
         recentTurns: memoryContext.recentTurns,
         rollingSummary: memoryContext.rollingSummary,
         stableFacts: memoryContext.stableFacts
@@ -280,6 +296,7 @@ export async function POST(request: NextRequest) {
         roleId: persona.id,
         reply: finalReply,
         crisis,
+        sensitiveContent,
         memory: buildResponseMemoryMeta({
           summaryUpdated: memoryRefresh.updated,
           stableFactsCount: session.stableFacts.length,
@@ -293,7 +310,7 @@ export async function POST(request: NextRequest) {
         }
       });
     } catch (error) {
-      console.error(error);
+      safeLogError("chat", error);
 
       const fallbackReply =
         crisis.riskLevel === "distress"
@@ -317,6 +334,7 @@ export async function POST(request: NextRequest) {
         roleId: persona.id,
         reply: fallbackReply,
         crisis,
+        sensitiveContent,
         usedFallback: true,
         memory: buildResponseMemoryMeta({
           summaryUpdated: memoryRefresh.updated,
@@ -332,7 +350,7 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error(error);
+    safeLogError("chat", error);
 
     const requestId = crypto.randomUUID();
     console.error("chat request failed", requestId, error);

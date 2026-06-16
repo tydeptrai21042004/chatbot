@@ -49,6 +49,12 @@ export interface ChatResponse {
   roleId: RoleId;
   reply: string;
   crisis: CrisisAssessment;
+  sensitiveContent?: {
+    detected: boolean;
+    matchedTerms: string[];
+    sanitizedText: string;
+    warning?: string;
+  };
   usedFallback?: boolean;
   memory?: ChatMemoryMeta;
   customPersona?: {
@@ -67,6 +73,7 @@ export interface SendChatPayload {
 }
 
 export interface SessionMessage {
+  id?: string;
   role: "user" | "assistant";
   content: string;
   timestamp: number;
@@ -196,7 +203,19 @@ export async function fetchSessionMessages(
   return data;
 }
 
-export async function deleteSession(sessionId:string):Promise<void>{
-  const response=await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}`,{method:"DELETE",cache:"no-store",credentials:"same-origin"});
-  if(!response.ok) throw new Error("Không thể xoá phiên chat.");
+export async function deleteSession(sessionId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}`,
+    { method: "DELETE", cache: "no-store", credentials: "same-origin" }
+  );
+  const data = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.error || "Không thể xóa đoạn chat.");
+  }
 }
+
+export interface ConversationListItem { sessionId:string; title:string; roleId:RoleId; createdAt:number; updatedAt:number; }
+export async function fetchSessions(query=""):Promise<ConversationListItem[]>{const r=await fetch(`${API_BASE_URL}/sessions?q=${encodeURIComponent(query)}`,{cache:"no-store",credentials:"same-origin"});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||"Không tải được danh sách trò chuyện");return d.sessions;}
+export async function renameSession(sessionId:string,title:string){const r=await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}/title`,{method:"PATCH",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({title})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||"Không đổi được tên trò chuyện");}
+export async function deleteMessage(sessionId:string,messageId:string){const r=await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}`,{method:"DELETE",credentials:"same-origin"});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||"Không xóa được tin nhắn");}
+export async function exportMyData(){const r=await fetch(`${API_BASE_URL}/me/export`,{credentials:"same-origin",cache:"no-store"});if(!r.ok)throw new Error("Không xuất được dữ liệu");const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`du-lieu-ca-nhan-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);}

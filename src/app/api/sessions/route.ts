@@ -1,0 +1,2 @@
+import {NextRequest,NextResponse} from "next/server";import{readIdentity}from"@/src/server/auth/auth";import{listOwnedSessions}from"@/src/server/data/store";
+export async function GET(req:NextRequest){const id=readIdentity(req);if(!id)return NextResponse.json({ok:false,error:"Unauthorized"},{status:401});const q=req.nextUrl.searchParams.get("q")||"";return NextResponse.json({ok:true,sessions:await listOwnedSessions(id.id,q)});}

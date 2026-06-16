@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { Readable } from "node:stream";
 import { readIdentity, hashPassword } from "@/src/server/auth/auth";
-import { addAcademicRecords, createUser, findUserByEmail } from "@/src/server/data/store";
+import { addAcademicRecords, assignStudentToTeacher, createUser, findUserByEmail } from "@/src/server/data/store";
 
 export const runtime = "nodejs";
 const MAX_FILE_SIZE=5_000_000, MAX_ROWS=10_000;
@@ -25,7 +25,7 @@ export async function POST(req:NextRequest){
    const studentId=pick(r,["studentId","Mã học sinh","Mã HS"]), studentName=pick(r,["studentName","Họ và tên","Tên học sinh"]), email=pick(r,["email","gmail","Email học sinh"]), className=pick(r,["className","Lớp"]), subject=pick(r,["subject","Môn học","Môn"]), semester=pick(r,["semester","Học kỳ"]), raw=pick(r,["score","Điểm","Điểm TB"]), score=Number(raw.replace(",","."));
    if(!studentId||!studentName||!email||!subject||!Number.isFinite(score)||score<0||score>10){errors.push(`Dòng ${n}: thiếu hoặc sai Mã học sinh, Họ tên, Gmail, Môn học hoặc Điểm 0-10.`);return;}
    if(!/^\S+@\S+\.\S+$/.test(email)){errors.push(`Dòng ${n}: Gmail không hợp lệ.`);return;}
-   rows.push({studentId,studentName,email:email.toLowerCase(),className,subject,semester,score});
+   rows.push({studentId,studentName,email:email.toLowerCase(),className,subject,semester,assessmentType:"Điểm tổng kết",note:"",score});
   });
   if(errors.length)return NextResponse.json({ok:false,error:"File có dữ liệu không hợp lệ",details:errors.slice(0,20)},{status:400});
   if(!rows.length)return NextResponse.json({ok:false,error:"Không tìm thấy dòng hợp lệ"},{status:400});
@@ -34,10 +34,13 @@ export async function POST(req:NextRequest){
   let createdAccounts=0;
   for(const s of students.values()){
    const existing=await findUserByEmail(s.email);
-   if(existing){if(existing.role!=="student"||existing.studentCode?.toLowerCase()!==s.studentId.toLowerCase())return NextResponse.json({ok:false,error:`Gmail ${s.email} đã thuộc tài khoản khác.`},{status:409});}
-   else {await createUser({email:s.email,name:s.studentName,role:"student",studentCode:s.studentId,passwordHash:hashPassword("123456"),mustChangePassword:true});createdAccounts++;}
+   let studentUser;
+   if(existing){if(existing.role!=="student"||existing.studentCode?.toLowerCase()!==s.studentId.toLowerCase())return NextResponse.json({ok:false,error:`Gmail ${s.email} đã thuộc tài khoản khác.`},{status:409});studentUser=existing;}
+   else {studentUser=await createUser({email:s.email,name:s.studentName,role:"student",studentCode:s.studentId,passwordHash:hashPassword("123456"),mustChangePassword:true});createdAccounts++;}
+   const firstRow=rows.find(r=>r.studentId.toLowerCase()===s.studentId.toLowerCase());
+   await assignStudentToTeacher(identity.id,studentUser.id,firstRow?.className||"");
   }
-  const count=await addAcademicRecords(rows.map(r=>({studentId:r.studentId,studentName:r.studentName,className:r.className,subject:r.subject,semester:r.semester,score:r.score,teacherId:identity.id})));
+  const count=await addAcademicRecords(rows.map(r=>({studentId:r.studentId,studentName:r.studentName,className:r.className,subject:r.subject,semester:r.semester,assessmentType:r.assessmentType,note:r.note,score:r.score,teacherId:identity.id})));
   return NextResponse.json({ok:true,count,createdAccounts,defaultPassword:"123456"});
  }catch(e){console.error(e);return NextResponse.json({ok:false,error:"Không thể đọc file. Hãy dùng đúng file mẫu."},{status:400});}
 }
