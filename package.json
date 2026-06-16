@@ -17,7 +17,8 @@
     "db:seed:teacher": "node scripts/seed-default-teacher.mjs",
     "db:setup": "npm run db:migrate && npm run db:seed:teacher",
     "check:no-playwright": "node scripts/check-no-playwright-in-app.mjs",
-    "prebuild": "npm run check:no-playwright"
+    "prebuild": "npm run check:no-playwright",
+    "db:check": "node scripts/check-neon-schema.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.0.2",

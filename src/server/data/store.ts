@@ -15,6 +15,17 @@ async function ensureSchema() {
   if (!schemaReady)
     schemaReady = (async () => {
       await sql`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),password_hash TEXT NOT NULL,student_code TEXT UNIQUE,must_change_password BOOLEAN NOT NULL DEFAULT FALSE,created_at BIGINT NOT NULL)`;
+      // CREATE TABLE IF NOT EXISTS does not upgrade an older table. Keep these
+      // additive ALTERs here so a stale Neon schema cannot crash production.
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS student_code TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`;
+      await sql`UPDATE users SET role=CASE WHEN lower(email)='1@gmail.com' THEN 'teacher' ELSE 'student' END WHERE role IS NULL OR role NOT IN ('student','teacher','admin')`;
+      await sql`ALTER TABLE users ALTER COLUMN role SET DEFAULT 'student'`;
+      await sql`ALTER TABLE users ALTER COLUMN role SET NOT NULL`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_users_student_code ON users(student_code) WHERE student_code IS NOT NULL`;
       await sql`CREATE TABLE IF NOT EXISTS teacher_student_assignments (teacher_id TEXT NOT NULL,student_user_id TEXT NOT NULL,class_name TEXT NOT NULL DEFAULT '',created_at BIGINT NOT NULL,PRIMARY KEY(teacher_id,student_user_id))`;
       await sql`CREATE TABLE IF NOT EXISTS academic_records (id TEXT PRIMARY KEY,student_id TEXT NOT NULL,student_name TEXT NOT NULL,class_name TEXT NOT NULL DEFAULT '',subject TEXT NOT NULL,semester TEXT NOT NULL DEFAULT '',assessment_type TEXT NOT NULL DEFAULT 'Điểm tổng kết',note TEXT NOT NULL DEFAULT '',score DOUBLE PRECISION NOT NULL,teacher_id TEXT NOT NULL,imported_at BIGINT NOT NULL)`;
       await sql`ALTER TABLE academic_records ADD COLUMN IF NOT EXISTS assessment_type TEXT NOT NULL DEFAULT 'Điểm tổng kết'`;
@@ -22,7 +33,23 @@ async function ensureSchema() {
       await sql`ALTER TABLE academic_records DROP CONSTRAINT IF EXISTS academic_records_teacher_id_student_id_subject_semester_key`;
       await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_academic_record_kind ON academic_records(teacher_id,student_id,subject,semester,assessment_type)`;
       await sql`CREATE TABLE IF NOT EXISTS sessions (session_id TEXT NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL DEFAULT 'Cuộc trò chuyện mới',role_id TEXT NOT NULL DEFAULT 'co-van-hoc-duong',encrypted_state TEXT,state_iv TEXT,state_tag TEXT,encryption_version INTEGER NOT NULL DEFAULT 1,created_at BIGINT NOT NULL DEFAULT 0,updated_at BIGINT NOT NULL,PRIMARY KEY(session_id,owner_id))`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS owner_id TEXT`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT 'Cuộc trò chuyện mới'`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS role_id TEXT NOT NULL DEFAULT 'co-van-hoc-duong'`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS encrypted_state TEXT`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS state_iv TEXT`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS state_tag TEXT`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS encryption_version INTEGER NOT NULL DEFAULT 1`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`;
+      await sql`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0`;
       await sql`CREATE TABLE IF NOT EXISTS session_messages (id TEXT PRIMARY KEY,session_id TEXT NOT NULL,owner_id TEXT NOT NULL,role TEXT NOT NULL,encrypted_content TEXT NOT NULL,content_iv TEXT NOT NULL,content_tag TEXT NOT NULL,encryption_version INTEGER NOT NULL DEFAULT 1,created_at BIGINT NOT NULL)`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS owner_id TEXT`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS role TEXT`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS encrypted_content TEXT`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS content_iv TEXT`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS content_tag TEXT`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS encryption_version INTEGER NOT NULL DEFAULT 1`;
+      await sql`ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`;
       await sql`CREATE TABLE IF NOT EXISTS risk_assessments (id TEXT PRIMARY KEY,session_id TEXT NOT NULL,owner_id TEXT NOT NULL,risk_level TEXT NOT NULL,reasons JSONB NOT NULL DEFAULT '[]',confidence DOUBLE PRECISION,created_at BIGINT NOT NULL,expires_at BIGINT NOT NULL)`;
       await sql`CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY,actor_id TEXT,action TEXT NOT NULL,target_id TEXT,ip_hash TEXT,metadata JSONB NOT NULL DEFAULT '{}',created_at BIGINT NOT NULL,expires_at BIGINT NOT NULL)`;
       await sql`CREATE TABLE IF NOT EXISTS rate_limits (bucket_key TEXT PRIMARY KEY,count INTEGER NOT NULL,reset_at BIGINT NOT NULL)`;
@@ -296,25 +323,36 @@ export async function deleteAcademicRecord(
 export async function listStudentWellbeing() {
   if (!useDb) return local.listStudentWellbeing();
   await ensureSchema();
-  const rows =
-    await sql!`SELECT owner_id,data FROM sessions ORDER BY updated_at DESC`;
-  const map = new Map<string, any>();
-  for (const row of rows as any[]) {
-    const w = row.data?.wellbeing;
-    if (!w) continue;
-    const current = map.get(row.owner_id);
-    if (!current) {
-      map.set(row.owner_id, { ownerId: row.owner_id, ...w, sessionCount: 1 });
-    } else {
-      current.sessionCount++;
-      current.distressCount += Number(w.distressCount || 0);
-      current.highRiskCount += Number(w.highRiskCount || 0);
-      if (Number(w.lastAssessedAt || 0) > Number(current.lastAssessedAt || 0)) {
-        Object.assign(current, w);
-      }
-    }
-  }
-  return [...map.values()];
+  const rows = await sql!`
+    SELECT DISTINCT ON (owner_id)
+      owner_id, risk_level, reasons, confidence, created_at
+    FROM risk_assessments
+    WHERE expires_at > ${Date.now()}
+    ORDER BY owner_id, created_at DESC
+  `;
+  const counts = await sql!`
+    SELECT owner_id,
+      count(*)::int AS assessment_count,
+      count(*) FILTER (WHERE risk_level='high')::int AS high_risk_count,
+      count(*) FILTER (WHERE risk_level IN ('medium','high'))::int AS distress_count
+    FROM risk_assessments
+    WHERE expires_at > ${Date.now()}
+    GROUP BY owner_id
+  `;
+  const countMap = new Map(counts.map((row:any)=>[row.owner_id,row]));
+  return rows.map((row:any)=>{
+    const count = countMap.get(row.owner_id) as any;
+    return {
+      ownerId: row.owner_id,
+      riskLevel: row.risk_level,
+      reasons: Array.isArray(row.reasons) ? row.reasons : [],
+      confidence: row.confidence == null ? null : Number(row.confidence),
+      lastAssessedAt: Number(row.created_at),
+      sessionCount: Number(count?.assessment_count || 0),
+      distressCount: Number(count?.distress_count || 0),
+      highRiskCount: Number(count?.high_risk_count || 0),
+    };
+  });
 }
 export async function teacherStudents(teacherId: string) {
   let users = await listUsers();
