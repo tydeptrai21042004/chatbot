@@ -15,7 +15,9 @@
     "db:migrate": "node scripts/migrate-neon.mjs",
     "data:retention": "node scripts/retention-cleanup.mjs",
     "db:seed:teacher": "node scripts/seed-default-teacher.mjs",
-    "db:setup": "npm run db:migrate && npm run db:seed:teacher"
+    "db:setup": "npm run db:migrate && npm run db:seed:teacher",
+    "check:no-playwright": "node scripts/check-no-playwright-in-app.mjs",
+    "prebuild": "npm run check:no-playwright"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.0.2",
