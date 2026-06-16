@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import React from "react";
+import { headers } from "next/headers";
 
 export const metadata: Metadata = {
   title: { default: "Bạn đồng hành học đường — Cố vấn tinh thần học đường", template: "%s · Bạn đồng hành học đường" },
@@ -7,15 +8,19 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.svg" }
 };
 
-export default function RootLayout({
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="vi" suppressHydrationWarning>
       <body>
         <div className="app-root">{children}</div>
 
-        <style>{`
+        <style nonce={nonce}>{`
           :root {
             color-scheme: light;
             --bg: #f4f7fb;
